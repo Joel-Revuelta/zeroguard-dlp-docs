@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://joel-revuelta.github.io/zeroguard-dlp-docs/sitemap.xml

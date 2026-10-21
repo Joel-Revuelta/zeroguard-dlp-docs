@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZeroGuard DLP for Jira &amp; JSM</title>
+  <meta name="description" content="Serverless data-loss prevention for Jira and Jira Service Management: detect and mask secrets, with a metadata-only tamper-evident audit log.">
+  <meta name="robots" content="index,follow">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true">ZG</span>
+        <span>ZeroGuard DLP</span>
+      </a>
+      <nav class="site-nav" aria-label="Documentation">
+          <a href="index.html" aria-current="page">Home</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="security.html">Security</a>
+          <a href="support.html">Support</a>
+          <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </header>
+  <main class="site-main">
+    <article class="doc">
+<h1>ZeroGuard DLP for Jira and Jira Service Management</h1>
+<p>ZeroGuard DLP is a serverless Atlassian Forge app that detects secrets and sensitive data in Jira issue summaries, ADF descriptions, and ADF comment bodies. When policy is enforced, it masks the current field, records a tamper-evident audit event, and leaves the rest of the issue untouched.</p>
+<p>It is designed for mid-market Jira and Jira Service Management Cloud teams that need practical data-loss prevention without Atlassian Guard Premium.</p>
+<div class="callout">
+<strong>Important:</strong> ZeroGuard masks the current Jira field only. Jira may retain previous revisions and may have already delivered notifications or webhooks. Rotate any exposed credential immediately.
+</div><h2>What it does</h2>
+<ul>
+<li>Scans issue summaries, ADF descriptions, and ADF comment bodies, including code blocks, formatted text, link URLs, and card URLs.</li>
+<li>Detects credit cards, AWS keys, GitHub tokens, Stripe keys, Slack tokens and webhooks, JWTs, PEM private keys, calibrated high-entropy secrets, and opt-in email addresses.</li>
+<li>Masks the current summary, description, or comment body and writes it back with <code>notifyUsers=false</code>.</li>
+<li>Stores identifiers, rule IDs, salted HMAC fingerprints, status, counts, and integrity hashes in a metadata-only audit log.</li>
+<li>Supports all-project, include-only, and exclude-only scoping using immutable project IDs.</li>
+<li>Provides dry-run mode, 30/90/180/365-day retention, and metadata-only CSV export.</li>
+</ul>
+<h2>Stay inside Atlassian</h2>
+<p>ZeroGuard runs on Forge and uses Atlassian product APIs and storage. It has no external egress, no separate vendor backend, and no dynamic webtriggers. The current development build is eligible for Atlassian&#39;s &quot;Runs on Atlassian&quot; program, subject to Atlassian review of the submitted build. Data residency is inherited from Forge.</p>
+<h2>Documentation</h2>
+<div class="card-grid">
+  <div class="card">
+    <h2>Privacy Policy</h2>
+    <p>What the app processes, where it is stored, retention, and your rights.</p>
+    <p><a href="privacy.html">Read the Privacy Policy</a></p>
+  </div>
+  <div class="card">
+    <h2>Security Architecture</h2>
+    <p>Architecture, cryptography, write safety, threat model, and incident response.</p>
+    <p><a href="security.html">Read the Security Architecture Statement</a></p>
+  </div>
+  <div class="card">
+    <h2>Support</h2>
+    <p>Support scope, response targets, and private vulnerability reporting.</p>
+    <p><a href="support.html">Read the Support Policy</a></p>
+  </div>
+  <div class="card">
+    <h2>Terms of Use</h2>
+    <p>Atlassian's standard EULA plus the ZeroGuard-specific terms.</p>
+    <p><a href="terms.html">Read the terms</a></p>
+  </div>
+</div><h2>Limitations</h2>
+<ul>
+<li>Current-field masking only; Jira history may retain the original value.</li>
+<li>No historical backfill: only new or edited content after installation is scanned automatically.</li>
+<li>Notifications and webhooks may have already delivered the value.</li>
+<li>Attachments, media, custom fields, and arbitrary ADF attributes are not scanned in v1.0.</li>
+<li>Detection is rule-based and heuristic. It is not a guarantee that every secret will be found.</li>
+<li>Email detection is opt-in and off by default.</li>
+<li>CSV export is capped at 5,000 data rows and may require narrowing filters.</li>
+<li>The audit log is tamper-evident, not immutable or externally anchored.</li>
+</ul>
+<h2>Contact</h2>
+<p>Product support and security reports: <strong><a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></strong>. Use a <code>SECURITY</code> subject prefix for vulnerability reports.</p>
+<p>ZeroGuard DLP is provided by Joel Revuelta Gómez, an individual sole trader trading as ZeroGuard, Carrer del Pare Laínez 47, 3r 1a, 08025 Barcelona, Spain.</p>
+
+
+    </article>
+  </main>
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <span>ZeroGuard DLP is provided by Joel Revuelta Gómez, sole trader trading as ZeroGuard, Barcelona, Spain.</span>
+      <span>Contact: <a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></span>
+    </div>
+  </footer>
+</body>
+</html>

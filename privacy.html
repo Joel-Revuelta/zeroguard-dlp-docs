@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Privacy Policy — ZeroGuard DLP</title>
+  <meta name="description" content="How ZeroGuard DLP processes, stores, retains, and protects information in Jira Cloud and Jira Service Management Cloud.">
+  <meta name="robots" content="index,follow">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true">ZG</span>
+        <span>ZeroGuard DLP</span>
+      </a>
+      <nav class="site-nav" aria-label="Documentation">
+          <a href="index.html">Home</a>
+          <a href="privacy.html" aria-current="page">Privacy</a>
+          <a href="security.html">Security</a>
+          <a href="support.html">Support</a>
+          <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </header>
+  <main class="site-main">
+    <article class="doc">
+<h1>ZeroGuard DLP Privacy Policy</h1>
+<p><strong>Effective date:</strong> 21 October 2026<br><strong>Last updated:</strong> 21 October 2026</p>
+<h2>1. Who we are</h2>
+<p>ZeroGuard DLP (&quot;ZeroGuard&quot;, &quot;the app&quot;) is provided by <strong>Joel Revuelta Gómez, an individual sole trader trading as ZeroGuard</strong>, located at <strong>Carrer del Pare Laínez 47, 3r 1a, 08025 Barcelona, Spain</strong> (&quot;we&quot;, &quot;us&quot;, or &quot;our&quot;). We are the vendor of the app in the Atlassian Marketplace.</p>
+<p>This policy explains how the app processes information when it is installed in a customer&#39;s Jira Cloud or Jira Service Management Cloud site. The customer that installs the app is the <strong>Customer</strong>. The Customer&#39;s Jira administrator controls the app&#39;s policy, scope, retention, and audit access.</p>
+<h2>2. Scope of this policy</h2>
+<p>This policy applies to:</p>
+<ul>
+<li>the ZeroGuard DLP Forge app;</li>
+<li>the ZeroGuard DLP administrative interface inside Jira;</li>
+<li>audit records and policy configuration stored by the app in Forge storage; and</li>
+<li>support and security communications with us about the app.</li>
+</ul>
+<p>It does not apply to Atlassian&#39;s own products or to other Marketplace apps. Atlassian&#39;s privacy notice governs Atlassian&#39;s processing of Jira data and the Forge platform.</p>
+<h2>3. Information the app processes</h2>
+<h3>3.1 Jira content processed transiently</h3>
+<p>When Jira delivers an issue or comment event, the app reads the affected Jira issue and, for comment events, the affected comment through Atlassian&#39;s Jira REST API. It processes:</p>
+<ul>
+<li>the issue summary;</li>
+<li>the ADF description, including text nodes, link URLs, and inline, block, and embed card URLs;</li>
+<li>the ADF comment body, including text nodes, link URLs, and inline, block, and embed card URLs;</li>
+<li>issue, project, and comment identifiers needed to address the correct Jira record; and</li>
+<li>the event type, timestamps, and identifiers needed for idempotency and audit correlation.</li>
+</ul>
+<p>This content is processed <strong>in memory in the Forge runtime</strong> to detect and mask sensitive values. The app does not send issue text, comment bodies, link URLs, card URLs, or detected values to us or to any third party. The app does not operate an external backend.</p>
+<p>When masking is enabled, the app writes the masked value back to the <strong>current</strong> Jira field through Atlassian&#39;s Jira REST API. The masked value becomes part of the Customer&#39;s Jira data and is subject to the Customer&#39;s Jira configuration, permissions, history, notifications, and retention.</p>
+<h3>3.2 Audit metadata stored by the app</h3>
+<p>The app stores audit records in Forge Custom Entities. The audit record is intentionally metadata-only. It may contain:</p>
+<ul>
+<li>a record key and an event key derived with HMAC;</li>
+<li>the event type;</li>
+<li>the Jira issue ID, issue key, project ID, and comment ID;</li>
+<li>the detection status (<code>PENDING</code>, <code>REDACTED</code>, <code>FAILED</code>, or <code>DETECTED</code>);</li>
+<li>the HTTP status of the Jira write, when applicable;</li>
+<li>the rule IDs and count of findings;</li>
+<li>a 16-character salted HMAC fingerprint for each finding;</li>
+<li>the finding location and ADF node type;</li>
+<li>a boolean indicating whether the finding list was truncated;</li>
+<li>a boolean indicating whether the field was recovered or changed before writeback;</li>
+<li>a snapshot hash, record hash, and outcome hash derived with HMAC;</li>
+<li>the app version and audit hash version;</li>
+<li>record creation, completion, and expiry timestamps; and</li>
+<li>a retention expiry used by Forge Custom Entity TTL and the daily cleanup job.</li>
+</ul>
+<p>Audit records <strong>do not contain</strong> raw summaries, descriptions, comment bodies, detected values, full event payloads, or Jira change-history values. A fingerprint is a keyed digest, not the original value, but it can be used to correlate the same value across records. The tenant HMAC salt is stored separately in Forge secret storage and is never returned to the administrative UI.</p>
+<h3>3.3 Policy configuration</h3>
+<p>The app stores the Customer&#39;s policy configuration in Forge key-value storage:</p>
+<ul>
+<li>whether scanning is enabled;</li>
+<li>whether dry-run mode is enabled;</li>
+<li>the scope mode and immutable project IDs;</li>
+<li>enabled rule IDs;</li>
+<li>retention days; and</li>
+<li>the account ID of the administrator who last saved the policy, plus the save timestamp.</li>
+</ul>
+<h3>3.4 Administrative and support information</h3>
+<p>If a Customer administrator contacts us, we may receive the administrator&#39;s name, email address, Jira site URL, and the details the administrator chooses to include in the request. We use this information to respond to the request, investigate issues, and protect the app. Do not send raw secrets, issue text, or comment bodies in a support request.</p>
+<h3>3.5 Logs</h3>
+<p>The app is designed to write <strong>metadata-only</strong> logs. Its logger allowlists fields such as event name, issue ID, issue key, project ID, comment ID, event type, status, audit status, HTTP status, deleted/failed counts, a truncation flag, a retryable flag, a bounded reason code, app version, and error class name. It does not intentionally log issue text, comment bodies, detected values, or full event payloads.</p>
+<p>Atlassian may independently collect Forge invocation metadata, platform logs, and audit information under Atlassian&#39;s privacy notice. The app does not control Atlassian&#39;s platform-level logging.</p>
+<h2>4. How the app uses information</h2>
+<p>The app uses information to:</p>
+<ul>
+<li>detect and mask secrets and sensitive data in the current Jira field;</li>
+<li>apply the Customer&#39;s project scope and rule policy;</li>
+<li>create tamper-evident audit evidence;</li>
+<li>verify audit-record integrity;</li>
+<li>prevent duplicate writes and update loops;</li>
+<li>enforce Marketplace licensing;</li>
+<li>retain and delete audit data according to the Customer&#39;s settings;</li>
+<li>provide support and respond to security reports; and</li>
+<li>maintain the security and reliability of the app.</li>
+</ul>
+<p>The app does not use Jira content for advertising, profiling, model training, or sale. The app does not make external network requests.</p>
+<h2>5. Legal bases and roles</h2>
+<p>Where the app processes Jira content on behalf of the Customer, the Customer is the <strong>controller</strong> and we act as a <strong>processor</strong>. The Customer determines the purpose and scope of processing through the app&#39;s policy and Jira permissions.</p>
+<p>For our own administrative, support, security, and business records, we may act as a controller and rely on:</p>
+<ul>
+<li>performance of a contract or steps prior to entering a contract;</li>
+<li>our legitimate interests in operating, securing, and supporting the app; and</li>
+<li>compliance with legal obligations.</li>
+</ul>
+<p>Where consent is required by applicable law, the Customer or we will obtain it separately.</p>
+<h2>6. Sharing and subprocessors</h2>
+<p>The app runs on Atlassian Forge and uses Atlassian Jira REST APIs and Forge storage. <strong>Atlassian</strong> is the platform provider and a necessary subprocessor for hosting, storage, runtime, and product APIs. Atlassian&#39;s own terms and privacy notice apply to that processing.</p>
+<p>The app does not send data to a separate ZeroGuard backend, analytics service, advertising network, or other third party. The app does not use dynamic webtriggers or external egress.</p>
+<p>If we use a support ticketing or email provider to respond to a request, that provider processes the support communication the Customer sends to us, not Jira content from the app. Do not include secrets or raw issue content in support communications.</p>
+<p>We may disclose information if required by law, regulation, legal process, or a binding order, or if necessary to protect rights, safety, and security. We do not sell personal information.</p>
+<h2>7. International transfers and data residency</h2>
+<p>The app is designed to store data in the Forge environment associated with the Customer&#39;s Jira site. When Atlassian supports the Customer&#39;s selected data-residency region for Forge storage and runtime, the app inherits that residency. The app does not route data to an independent region or external service.</p>
+<p>Atlassian controls the locations and safeguards for Forge platform processing. Customers should review Atlassian&#39;s data-residency documentation for their site and product.</p>
+<h2>8. Retention and deletion</h2>
+<h3>8.1 Audit records</h3>
+<p>The Customer selects an audit retention period of 30, 90, 180, or 365 days. The default is 90 days. The app records an expiry timestamp for each audit record and applies a Forge Custom Entity TTL. A daily scheduled job also deletes records whose signed expiry has passed and records older than the current retention setting, so the Customer is not dependent on eventual platform TTL cleanup and increasing retention does not extend older evidence.</p>
+<p>The daily retention job continues to run when the Marketplace license is inactive. Deleting data on schedule is a privacy obligation, not a paid feature.</p>
+<h3>8.2 Policy configuration and tenant salt</h3>
+<p>The policy configuration remains until the Customer changes it or the app is uninstalled. The tenant HMAC salt is intentionally not deleted by the app&#39;s pre-uninstall hook: remaining audit hashes must still verify if uninstall cleanup is interrupted.</p>
+<p>When the app is uninstalled, Atlassian&#39;s Forge lifecycle removes app storage. The app&#39;s pre-uninstall hook is best-effort: it attempts to delete up to 500 audit records, but Forge does not block uninstall on completion. Some records may remain until Atlassian&#39;s platform cleanup or TTL expiry.</p>
+<h3>8.3 Jira content</h3>
+<p>Jira content is controlled by the Customer and Atlassian. Masking changes the current field, but Jira may retain prior revisions, notifications, webhook deliveries, backups, and indexes under the Customer&#39;s Jira configuration and Atlassian&#39;s retention. The app cannot delete those copies. The Customer must use Jira administration tools and its own processes for any additional erasure.</p>
+<h3>8.4 Historical content</h3>
+<p>ZeroGuard processes issue and comment content when Jira delivers a create or update event after the app is installed. It does not automatically backfill or scan issues and comments that existed before installation. A Customer that needs a historical review must trigger edits or use a separate approved process; the app does not provide a bulk backfill feature in v1.0.</p>
+<h2>9. Security</h2>
+<p>The app uses:</p>
+<ul>
+<li>Forge-hosted runtime and storage, subject to Atlassian&#39;s Forge security controls;</li>
+<li>HMAC-SHA-256 with a per-tenant salt for fingerprints and audit hashes;</li>
+<li>canonical JSON and domain separation for audit verification;</li>
+<li>metadata-only audit records and logs;</li>
+<li>backend-only storage access (the UI does not receive the tenant salt);</li>
+<li><code>notifyUsers=false</code> on Jira writes;</li>
+<li>trigger <code>ignoreSelf</code> filtering to reduce update loops; and</li>
+<li>idempotency and a pre-write snapshot comparison to reduce duplicate writes.</li>
+</ul>
+<p>No method of transmission or storage is completely secure. The app is not a substitute for credential rotation, Jira permission design, or the Customer&#39;s incident-response process.</p>
+<h2>10. Customer responsibilities</h2>
+<p>The Customer is responsible for:</p>
+<ul>
+<li>obtaining any notices or consents required for monitoring its Jira content;</li>
+<li>configuring project scope, rules, dry-run, and retention appropriately;</li>
+<li>restricting Jira and app administration to authorized personnel;</li>
+<li>rotating any credential that was exposed, even if the current field was masked;</li>
+<li>reviewing Jira history, notifications, webhooks, and integrations that may contain the exposed value;</li>
+<li>protecting support communications; and</li>
+<li>complying with its own legal, regulatory, and contractual obligations.</li>
+</ul>
+<h2>11. Data subject rights</h2>
+<p>Individuals should contact the Customer&#39;s Jira administrator first. The Customer controls the Jira site and the app configuration. We will assist the Customer with reasonable requests to access, correct, delete, or restrict personal data processed by the app, to the extent required by law.</p>
+<p>Where we act as a controller, you may contact us at <strong><a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></strong> to exercise applicable rights. We may need to verify your identity and your relationship to the relevant Customer.</p>
+<h2>12. Children</h2>
+<p>The app is a business productivity tool and is not directed to children. We do not knowingly collect personal information from children through the app.</p>
+<h2>13. Cookies and tracking</h2>
+<p>The app does not set advertising cookies, use third-party analytics, or track users across sites. The Forge iframe and the Atlassian products may use Atlassian cookies and local storage under Atlassian&#39;s policies. The app&#39;s UI may use browser clipboard or download APIs only when the administrator clicks the relevant action.</p>
+<h2>14. Changes to this policy</h2>
+<p>We may update this policy to reflect changes to the app, legal requirements, or Atlassian platform behavior. We will post the new effective date and, where appropriate, provide additional notice in the Marketplace listing or app documentation. Continued use after the effective date means the updated policy applies.</p>
+<h2>15. Contact</h2>
+<p><strong>Privacy, support, and security contact:</strong> <a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a><br><strong>Postal address:</strong> Carrer del Pare Laínez 47, 3r 1a, 08025 Barcelona, Spain</p>
+<p>For security vulnerabilities, follow the instructions in <a href="support.html">Support Policy</a> and do not include secrets or raw issue content in the report.</p>
+
+
+    </article>
+  </main>
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <span>ZeroGuard DLP is provided by Joel Revuelta Gómez, sole trader trading as ZeroGuard, Barcelona, Spain.</span>
+      <span>Contact: <a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></span>
+    </div>
+  </footer>
+</body>
+</html>

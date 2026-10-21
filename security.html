@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Security Architecture — ZeroGuard DLP</title>
+  <meta name="description" content="ZeroGuard DLP architecture, cryptography, write safety, threat model, and incident response.">
+  <meta name="robots" content="index,follow">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true">ZG</span>
+        <span>ZeroGuard DLP</span>
+      </a>
+      <nav class="site-nav" aria-label="Documentation">
+          <a href="index.html">Home</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="security.html" aria-current="page">Security</a>
+          <a href="support.html">Support</a>
+          <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </header>
+  <main class="site-main">
+    <article class="doc">
+<h1>ZeroGuard DLP Security Architecture Statement</h1>
+<p><strong>App version:</strong> 1.0.0<br><strong>Audit hash version:</strong> 1<br><strong>Platform:</strong> Atlassian Forge, <code>nodejs24.x</code>, 256 MB, arm64<br><strong>Last reviewed:</strong> 21 October 2026</p>
+<h2>1. Executive summary</h2>
+<p>ZeroGuard DLP is a Forge-only app. It runs in Atlassian&#39;s cloud, uses Atlassian product APIs and Forge storage, and has no external egress or separate vendor backend. The app detects secrets and sensitive data in Jira issue summaries, ADF descriptions, and ADF comment bodies, masks the current field when policy is enforced, and writes a metadata-only audit record with HMAC integrity hashes.</p>
+<p>The security design is built around four rules:</p>
+<ol>
+<li><strong>Minimize data.</strong> The audit log never stores raw issue text, comment bodies, detected values, or full event payloads.</li>
+<li><strong>Keep writes narrow.</strong> The app modifies only the current summary, description, or comment body that contained a finding.</li>
+<li><strong>Make evidence verifiable.</strong> Each audit record has a domain-separated HMAC record hash and a separate outcome hash. Verification runs on the backend.</li>
+<li><strong>Stay inside Atlassian.</strong> There is no external data plane, no dynamic webtrigger, and no third-party analytics or processing service.</li>
+</ol>
+<h2>2. Trust boundaries and components</h2>
+<pre><code class="language-text">Jira Cloud / JSM
+  │
+  │  product event (create/update/comment)
+  ▼
+Forge trigger function ──────────────────────────────────────────────┐
+  │  Jira REST (asApp)                                               │
+  │  read issue/comment, compare snapshot, write masked current field │
+  ▼                                                                   │
+Detection engine (in memory)                                          │
+  │  rules + ADF walker + cross-node collapse                         │
+  ▼                                                                   │
+Audit store (Forge Custom Entities) ◄──── Admin resolver ◄──── UI Kit admin page
+  │  metadata + HMAC hashes                 (backend only)          │
+  ▼                                                                   │
+Forge key-value / secret storage (policy + tenant salt)               │
+                                                                      │
+Daily retention job ──► deletes expired audit records                 │
+Pre-uninstall hook ───► best-effort audit/config cleanup ─────────────┘
+</code></pre>
+<h3>2.1 Components</h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Runtime</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Admin page</td>
+<td>Forge UI Kit (<code>@forge/react</code>)</td>
+<td>Policy, audit, settings, CSV export, integrity verification.</td>
+</tr>
+<tr>
+<td>Admin resolver</td>
+<td>Forge function</td>
+<td>Loads bootstrap, saves policy, queries audit, verifies records, purges records, searches projects as the user.</td>
+</tr>
+<tr>
+<td>Issue scanner</td>
+<td>Forge trigger</td>
+<td>Handles issue create/update events; scans summary/description; writes masked fields.</td>
+</tr>
+<tr>
+<td>Comment scanner</td>
+<td>Forge trigger</td>
+<td>Handles comment events; re-reads the comment; scans body; writes a masked body.</td>
+</tr>
+<tr>
+<td>Lifecycle handler</td>
+<td>Forge trigger</td>
+<td>Creates the tenant HMAC salt and default policy on install/upgrade.</td>
+</tr>
+<tr>
+<td>Retention job</td>
+<td>Forge scheduled trigger</td>
+<td>Deletes expired audit records daily.</td>
+</tr>
+<tr>
+<td>Pre-uninstall hook</td>
+<td>Forge lifecycle trigger</td>
+<td>Best-effort deletion of audit records and policy.</td>
+</tr>
+<tr>
+<td>Detection engine</td>
+<td>Pure JavaScript</td>
+<td>Rules, Luhn/IIN checks, entropy checks, ADF traversal, findings.</td>
+</tr>
+<tr>
+<td>Audit model/store</td>
+<td>Forge function + Custom Entities</td>
+<td>Record hashing, status transitions, queries, TTL, deletion.</td>
+</tr>
+</tbody></table>
+<h3>2.2 Forge modules and scopes</h3>
+<p>The manifest declares:</p>
+<ul>
+<li><code>jira:adminPage</code> for the admin UI;</li>
+<li>product triggers for issue create/update and comment events, both with <code>ignoreSelf: true</code>;</li>
+<li>lifecycle triggers for install/upgrade and pre-uninstall;</li>
+<li>a daily scheduled trigger;</li>
+<li>a <code>redaction-audit</code> Custom Entity with <code>by-time</code>, <code>by-project-time</code>, <code>by-status-time</code>, <code>by-project-status-time</code>, <code>by-event-status-time</code>, and <code>by-expiry</code> indexes;</li>
+<li>Forge licensing enabled; and</li>
+<li>scopes <code>read:jira-work</code>, <code>write:jira-work</code>, and <code>storage:app</code>.</li>
+</ul>
+<p>There is no <code>permissions.egress</code>, no external fetch, and no dynamic webtrigger.</p>
+<h2>3. Data flow</h2>
+<h3>3.1 Detection and masking</h3>
+<ol>
+<li>Jira delivers an issue or comment event to a Forge trigger.</li>
+<li>The app derives a stable event key from event-payload identifiers and timestamps. It does not use a random UUID or the fetched issue&#39;s <code>updated</code> value.</li>
+<li>The app checks licensing and policy. If scanning is disabled, the event is out of scope, or the license is inactive, the app exits without a Jira write.</li>
+<li>The app reads the issue/comment through the Jira REST API using <code>asApp()</code>.</li>
+<li>The app scans:<ul>
+<li>summary text;</li>
+<li>ADF description text nodes, link marks, and inline, block, and embed card URLs;</li>
+<li>ADF comment body text nodes, link marks, and inline, block, and embed card URLs;</li>
+<li>adjacent text nodes for values split by formatting.</li>
+</ul>
+</li>
+<li>The app creates a <code>PENDING</code> audit record <strong>before</strong> any Jira write. The record contains metadata, findings, a snapshot hash, and HMAC hashes.</li>
+<li>The app re-reads the issue/comment twice to detect concurrent changes. It proceeds only after a stable snapshot.</li>
+<li>If the content is still unchanged at the final pre-write check, the app writes the masked current field with <code>notifyUsers=false</code>.</li>
+<li>The app completes the audit record with <code>REDACTED</code>, <code>FAILED</code>, or <code>DETECTED</code> (dry run) and an outcome hash.</li>
+<li>If the content changed, the app does not overwrite the newer user edit. It records a <code>FAILED</code> conflict outcome or reconciles a recovered clean state.</li>
+</ol>
+<h3>3.2 Audit lifecycle</h3>
+<pre><code class="language-text">PENDING ──► REDACTED   masked write succeeded
+   │
+   ├────► FAILED      write failed, conflict, missing field, or malformed scan
+   │
+   └────► DETECTED    dry-run finding
+</code></pre>
+<p>A record key is deterministic from the event key. If the same event key is seen again with a different raw snapshot, the app adds a snapshot-hash suffix so the older evidence is not overwritten. Retries of the same event/snapshot reuse the same key.</p>
+<h3>3.3 Read and write identity</h3>
+<ul>
+<li>Trigger reads and writes use <code>asApp()</code> because the app must operate independently of the user who triggered the event and must be able to mask content even after the user session ends.</li>
+<li>The app requests only the Jira scopes it needs.</li>
+<li>Project search in the admin resolver uses <code>asUser()</code> so Jira checks the administrator&#39;s project visibility.</li>
+<li>The app does not use the browser UI to write Jira content.</li>
+<li><code>notifyUsers=false</code> is set on issue and comment updates.</li>
+<li><code>ignoreSelf: true</code> is set on both product triggers to reduce loops from the app&#39;s own writes.</li>
+</ul>
+<h2>4. Cryptographic design</h2>
+<h3>4.1 Tenant salt</h3>
+<p>A 32-byte random salt is generated with Node&#39;s <code>crypto.randomBytes</code> and stored as 64 lowercase hexadecimal characters in Forge secret storage. It is created once per installation by the lifecycle handler and never returned to the admin UI.</p>
+<p>The salt is the root secret for all HMACs in the installation. The app does not store it in audit records, logs, CSV exports, or resolver responses.</p>
+<h3>4.2 HMAC domains</h3>
+<p>All values use HMAC-SHA-256 with explicit domain separation:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Domain</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Finding fingerprint</td>
+<td><code>zg:v1:fingerprint:&lt;ruleId&gt;</code></td>
+<td>16 hex</td>
+</tr>
+<tr>
+<td>Event key</td>
+<td><code>zg:v1:event</code></td>
+<td>32 hex</td>
+</tr>
+<tr>
+<td>Findings hash</td>
+<td><code>zg:v1:findings</code></td>
+<td>32 hex</td>
+</tr>
+<tr>
+<td>Record hash</td>
+<td><code>zg:v1:record</code></td>
+<td>32 hex</td>
+</tr>
+<tr>
+<td>Outcome hash</td>
+<td><code>zg:v1:outcome</code></td>
+<td>32 hex</td>
+</tr>
+</tbody></table>
+<p>Domain separation prevents a fingerprint from being reused as an event key or audit hash even though all values use the same tenant salt.</p>
+<h3>4.3 Canonical JSON</h3>
+<p>Audit hashes are computed over a canonical JSON encoding with sorted object keys and JSON-safe scalar handling. The same encoding is used at creation and verification, so key order, <code>undefined</code> values, and nested object ordering do not create false mismatches.</p>
+<h3>4.4 Record and outcome integrity</h3>
+<p>The <strong>record hash</strong> covers the immutable creation evidence:</p>
+<ul>
+<li>record type, record key, event key, event type;</li>
+<li>issue ID, issue key, project ID, comment ID;</li>
+<li>snapshot hash and findings hash;</li>
+<li>finding count and truncation flag;</li>
+<li>creation timestamp, app version, and hash version.</li>
+</ul>
+<p>The <strong>record hash deliberately excludes status and completion fields</strong>, so a record can move from <code>PENDING</code> to <code>REDACTED</code> without invalidating its creation evidence.</p>
+<p>The <strong>outcome hash</strong> covers:</p>
+<ul>
+<li>the record hash;</li>
+<li>status;</li>
+<li>HTTP write status;</li>
+<li>completion timestamp; and</li>
+<li>the <code>recovered</code> flag.</li>
+</ul>
+<p>The outcome hash includes the record hash so an outcome cannot be transplanted onto another record. Verification recomputes both hashes on the server and compares them with a timing-safe equality check after validating hexadecimal input.</p>
+<h3>4.5 What the audit log can and cannot prove</h3>
+<p>The audit log is <strong>tamper-evident</strong>. It can detect changes to a record that were not re-signed with the tenant salt. It is not:</p>
+<ul>
+<li>an immutable ledger;</li>
+<li>a public transparency log;</li>
+<li>a global hash chain;</li>
+<li>a trusted timestamp;</li>
+<li>proof that Jira history was erased; or</li>
+<li>proof that a masked value was never delivered to a webhook or notification.</li>
+</ul>
+<p>A party with Forge app administration and access to both the audit storage and tenant salt could rewrite records and re-sign them. The design limits that risk through Forge access controls, backend-only secret access, and separation of the salt from the audit records, but it does not eliminate it.</p>
+<h2>5. Detection scope and write safety</h2>
+<h3>5.1 Detected content</h3>
+<p>v1.0 scans:</p>
+<ul>
+<li>issue summary;</li>
+<li>ADF description text nodes, link mark URLs, and inline, block, and embed card URLs;</li>
+<li>ADF comment body text nodes, link mark URLs, and inline, block, and embed card URLs.</li>
+</ul>
+<p>The ADF walker preserves node structure where possible. It replaces sensitive text with placeholders, makes sensitive link/card URLs inert, and can collapse a value split across adjacent text nodes. It scans code blocks and formatted text.</p>
+<p>It does <strong>not</strong> scan attachments, media nodes, arbitrary ADF attributes, custom fields, or Jira history. Those limitations are documented for customers.</p>
+<h3>5.2 Write guards</h3>
+<ul>
+<li>The app scans the current content immediately before writing.</li>
+<li>It re-reads twice to establish a stable snapshot.</li>
+<li>It compares the final pre-write snapshot with the audited snapshot.</li>
+<li>If the content changed, it does not overwrite the newer content.</li>
+<li>It uses deterministic event keys and audit status checks to avoid duplicate writes on retries.</li>
+<li>It sets <code>notifyUsers=false</code>.</li>
+<li>It uses <code>ignoreSelf</code> on triggers.</li>
+<li>It records the actual Jira HTTP status instead of hardcoding a success code.</li>
+<li>It creates the audit evidence before the write and completes the outcome afterward.</li>
+</ul>
+<h3>5.3 Known residual risk: Jira history</h3>
+<p>Masking the current field does not remove previous revisions. Jira may retain the original value in issue history, notifications, webhooks, indexes, backups, or integrations. Customers must rotate exposed credentials and use Jira administration controls for any additional erasure. The UI and documentation state this explicitly.</p>
+<h2>6. Administrative access and tenancy</h2>
+<ul>
+<li>The admin UI is a Forge <code>jira:adminPage</code>, available to Jira administrators.</li>
+<li>Storage APIs are called only from backend functions and resolvers. The UI never receives the tenant salt.</li>
+<li>Project search uses <code>asUser()</code> so Jira enforces the administrator&#39;s project permissions.</li>
+<li>Policy updates store the updating account ID and timestamp.</li>
+<li>Audit verification runs on the backend; the UI receives only per-record valid/invalid results.</li>
+<li>Each Forge installation has isolated storage and its own salt. The app does not share audit records or policy across installations.</li>
+<li>The resolver returns generic error messages to the UI and does not return raw Jira error bodies.</li>
+</ul>
+<h2>7. Logging and data minimization</h2>
+<p>The logger uses an allowlist. It can emit:</p>
+<ul>
+<li>event name and level;</li>
+<li>issue ID, issue key, project ID, comment ID;</li>
+<li>event type;</li>
+<li>status and HTTP status;</li>
+<li>deleted/failed counts;</li>
+<li>a bounded reason code;</li>
+<li>app version; and</li>
+<li>error class name.</li>
+</ul>
+<p>It does not intentionally emit issue text, comment bodies, detected values, fingerprints, event keys, record keys, tenant salt, or full event payloads. Error messages from Jira are not logged because Jira error bodies can echo field values.</p>
+<p>Audit records are also metadata-only. Findings store rule ID, 16-character fingerprint, location, and node type. The original value is discarded after the scan.</p>
+<h2>8. Licensing and lifecycle</h2>
+<ul>
+<li>Forge licensing is enabled in the manifest.</li>
+<li>Backend trigger code checks <code>context.license</code> before scanning. If Forge explicitly reports the license as inactive, scanning pauses. An omitted license is treated as active so free-tier and development installations can scan; Atlassian remains responsible for Marketplace user-tier enforcement.</li>
+<li>Retention runs even when unlicensed so data is still deleted on schedule.</li>
+<li>The lifecycle handler ensures a tenant salt and default policy exist.</li>
+<li>The pre-uninstall hook deletes up to 500 audit records and the policy on a best-effort basis. It intentionally leaves the salt so remaining hashes can verify during an interrupted uninstall. Forge removes app storage after uninstall under Atlassian&#39;s lifecycle.</li>
+<li>Audit records have a TTL of up to 365 days; the daily job also deletes expired records.</li>
+</ul>
+<h3>8.1 Audit outcome and retry semantics</h3>
+<ul>
+<li>A scan creates a <code>PENDING</code> record before any Jira write. If the audit record cannot be created, the app does not write to Jira.</li>
+<li>A successful Jira write becomes <code>REDACTED</code> only when the conditional audit update succeeds. The scanner compares the returned terminal status and logs <code>audit-incomplete</code> when another invocation or a storage conflict produced a different result; it does not claim success from the Jira response alone.</li>
+<li>A <code>FAILED</code> record is terminal evidence. The same Forge delivery is not retried indefinitely after a non-retryable Jira error or a content conflict; a later user edit creates a new event key and a new scan. Transient storage failures remain retryable and are surfaced to Forge.</li>
+<li>When a retry finds the content already clean, the app reconciles a prior <code>PENDING</code> record to <code>REDACTED</code> with <code>recovered=true</code>. A deleted or expired record is not recreated or resurrected. “Clean” means no finding under the rules enabled at retry time; if an administrator has since disabled a rule, the earlier finding is preserved as evidence but is not re-proven masked.</li>
+<li>If the same event key is seen with a different raw snapshot, the new record uses a snapshot suffix so the earlier evidence is preserved.</li>
+<li>The completion write is a conditional transaction on <code>recordHash</code> and <code>status === &#39;PENDING&#39;</code> when Forge supports it. This narrows the race between concurrent invocations; it is not a substitute for the Jira pre-write snapshot check.</li>
+<li>Storage errors are classified as retryable or non-retryable. Schema and permission errors stop the retry loop instead of producing an infinite Forge retry; transport and 5xx errors are retried.</li>
+<li>Each audit record carries its signed expiry. The daily job deletes records whose expiry has passed and records older than the current retention setting, so increasing retention does not extend older evidence and decreasing it applies the shorter window. A failed deletion batch is retried on the next run. If one retention index query is unavailable, the other cleanup source still runs and the job reports <code>partial</code> rather than deleting nothing.</li>
+</ul>
+<h3>8.2 Coverage and lifecycle limits</h3>
+<ul>
+<li>ADF coverage includes text nodes, code blocks, link URLs, link titles, expand titles, status text, and inline/block/embed card URLs. Cross-node detection is bounded to runs of 8 adjacent text nodes and 4,000 characters. Media nodes, attachment contents, custom fields, and arbitrary ADF attributes are out of scope for v1.0.</li>
+<li>The app does not backfill pre-existing issues or comments. It scans content delivered by Jira create/update events after installation.</li>
+<li>An omitted <code>context.license</code> is treated as active for free, development, and non-production contexts so the app remains usable when Forge does not supply a license object. The app pauses only when Forge explicitly reports an inactive license.</li>
+<li>Pre-uninstall cleanup is best-effort and deletes up to 500 audit records plus the policy. It intentionally keeps the tenant salt so remaining hashes can verify during an interrupted uninstall; TTL and platform cleanup remain the backstop.</li>
+</ul>
+<h2>9. Egress and data residency</h2>
+<p>The app makes requests only to Atlassian Jira REST APIs and Forge storage/services. It does not call an external endpoint, use a dynamic webtrigger, load third-party scripts, or send telemetry to the vendor.</p>
+<p>This architecture is intended to support Atlassian&#39;s &quot;Runs on Atlassian&quot; program and inherited Forge data residency. Final eligibility is determined by Atlassian&#39;s review of the submitted app and listing. The app does not make an independent data-residency promise outside Atlassian&#39;s Forge capabilities.</p>
+<h2>10. Threat model</h2>
+<table>
+<thead>
+<tr>
+<th>Threat</th>
+<th>Control</th>
+<th>Residual risk</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Raw secret appears in app logs</td>
+<td>Metadata allowlist; no error bodies; no raw findings in logs.</td>
+<td>Platform-level logs or a future code regression; covered by review and tests.</td>
+</tr>
+<tr>
+<td>Raw secret stored in audit</td>
+<td>Audit model stores only rule ID, fingerprint, location, node type, identifiers, and hashes.</td>
+<td>Fingerprints permit correlation.</td>
+</tr>
+<tr>
+<td>Duplicate writes / update loop</td>
+<td><code>ignoreSelf</code>, deterministic event keys, audit status checks, idempotent writes.</td>
+<td>Forge may redeliver events; content is re-scanned and clean scans do not write.</td>
+</tr>
+<tr>
+<td>Concurrent audit completion</td>
+<td>Conditional transaction on <code>recordHash</code> and <code>PENDING</code>; terminal record re-read before write.</td>
+<td>If transaction conditions are unavailable or change, the record may remain <code>PENDING</code> and retry until reconciliation.</td>
+</tr>
+<tr>
+<td>False success claim</td>
+<td>Scanner logs success only when the audit terminal status matches the Jira outcome.</td>
+<td>Storage can fail after Jira succeeds; the scanner retries and then reconciles from the clean content.</td>
+</tr>
+<tr>
+<td>Concurrent user edit overwritten</td>
+<td>Two re-reads; final snapshot comparison; conflict <code>FAILED</code>/recovered outcome.</td>
+<td>A change can land after the final read and before the write.</td>
+</tr>
+<tr>
+<td>App writes with admin privileges</td>
+<td>Scopes limited to Jira work and app storage; writes only masked current fields; no arbitrary field updates.</td>
+<td>A compromised app deployment could use its scopes; protect the Forge app and vendor account.</td>
+</tr>
+<tr>
+<td>Unauthorized admin access</td>
+<td>Jira admin page; backend-only storage; <code>asUser()</code> project search; account ID recorded on policy save; <code>mypermissions</code> check before policy saves and audit purges.</td>
+<td>A Jira administrator can purge audit records by design.</td>
+</tr>
+<tr>
+<td>Audit tampering</td>
+<td>HMAC record/outcome hashes; salt in secret storage; backend verification; timing-safe compare.</td>
+<td>Storage + salt administrator could re-sign; no external anchor.</td>
+</tr>
+<tr>
+<td>Cross-tenant leakage</td>
+<td>Forge installation isolation; per-install salt; no shared backend.</td>
+<td>Platform isolation depends on Atlassian.</td>
+</tr>
+<tr>
+<td>CSV formula injection</td>
+<td>Leading whitespace followed by <code>= + - @ tab CR</code> neutralized; every cell quoted.</td>
+<td>Spreadsheet behavior varies; export remains metadata-only.</td>
+</tr>
+<tr>
+<td>CSV export memory/time blowup</td>
+<td>Export page size 100 (the resolver maximum), 5,000 data-row cap, 5,000-record cap, 50-page cap, explicit truncation notice.</td>
+<td>Broad filters may require narrowing.</td>
+</tr>
+<tr>
+<td>Denial via oversized ADF</td>
+<td>ADF traversal is bounded in practice by Jira&#39;s field limits; findings capped at 200 per record; cross-node runs capped at 8 nodes/4,000 characters.</td>
+<td>Very large or adversarial ADF can still consume function time; monitor logs.</td>
+</tr>
+<tr>
+<td>False negative in unsupported ADF shapes</td>
+<td>Strings and bare content arrays are normalized; cards, link titles, expand titles, and status text are covered.</td>
+<td>Media/attachment contents, custom fields, and arbitrary attributes are not scanned in v1.0.</td>
+</tr>
+<tr>
+<td>License bypass</td>
+<td>Backend license check; trigger exits when inactive.</td>
+<td>Dev/test contexts may report a development license; production enforcement depends on Forge license data.</td>
+</tr>
+<tr>
+<td>Data left after uninstall</td>
+<td>TTL, daily retention, best-effort pre-uninstall cleanup.</td>
+<td>Pre-uninstall is time-limited and non-blocking; platform cleanup is outside app control.</td>
+</tr>
+<tr>
+<td>Pre-existing sensitive content</td>
+<td>Event-driven scanning covers new and edited content; limitations are documented in the app and README.</td>
+<td>No automatic backfill in v1.0; install does not scan historical issues.</td>
+</tr>
+<tr>
+<td>Comment edit not delivered</td>
+<td>Jira&#39;s comment event is documented as create-and-edit; app re-reads comment and determines created vs updated.</td>
+<td>Validate in the target Jira site; see validation spikes.</td>
+</tr>
+</tbody></table>
+<h2>11. Secure development and verification</h2>
+<p>The repository includes automated tests for:</p>
+<ul>
+<li>canonical JSON, HMAC, and timing-safe comparison;</li>
+<li>detection rules, Luhn/IIN validation, entropy checks, and regex behavior;</li>
+<li>ADF traversal, link/card handling, and cross-node collapse;</li>
+<li>event identity and payload fallback behavior;</li>
+<li>policy validation and persistence;</li>
+<li>audit record construction, hashing, and verification;</li>
+<li>audit-store lifecycle, query, and retention behavior;</li>
+<li>scan-field orchestration; and</li>
+<li>CSV escaping, row caps, and formula neutralization.</li>
+</ul>
+<p>Before release, run:</p>
+<pre><code class="language-bash">pnpm test
+forge lint
+</code></pre>
+<p>The frontend is also compiled in a temporary Vite check with Forge/React externalized to catch syntax and import errors. The <code>4.1.0</code> development build was deployed, installed, and live-tested on a Jira demo site. All 11 browser checks passed on Microsoft Edge on 21 October 2026, including enforcement, comment create/edit, UI verification, CSV export, scope, non-admin rejection, and purge.</p>
+<h2>12. Incident response</h2>
+<p>If a vulnerability or suspected data exposure is reported:</p>
+<ol>
+<li>Acknowledge the report at <strong><a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></strong> and establish a private channel.</li>
+<li>Preserve metadata-only evidence. Do not request raw secrets or issue bodies.</li>
+<li>Assess the affected app version, installation scope, and whether the tenant salt or audit storage could be accessed.</li>
+<li>Contain the issue through a Forge deployment rollback or fix; coordinate with Atlassian if the platform is involved.</li>
+<li>Notify affected customers and Atlassian as required by law and Marketplace policy.</li>
+<li>Rotate any credential that may have been exposed; masking does not remove prior history or notifications.</li>
+<li>Document the root cause, fix, and verification, and update tests and this statement.</li>
+</ol>
+<p><strong>Security contact:</strong> <a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a><br><strong>Support contact:</strong> <a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></p>
+<h2>13. Open items before Marketplace submission</h2>
+<ul>
+<li>Complete the browser-only validation checks: rendered admin page, UI Verify, CSV download/copy fallback, and positive Jira-administrator authorization.</li>
+<li>Confirm CSV download behavior inside the managed UI Kit frame; retain the copyable fallback.</li>
+<li>Confirm final &quot;Runs on Atlassian&quot; and data-residency claims with Atlassian&#39;s review process; the <code>4.1.0</code> development build is currently eligible.</li>
+<li>Replace all bracketed contacts, legal entity details, and public URLs.</li>
+<li>Have counsel review the Privacy Policy and EULA.</li>
+</ul>
+
+
+    </article>
+  </main>
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <span>ZeroGuard DLP is provided by Joel Revuelta Gómez, sole trader trading as ZeroGuard, Barcelona, Spain.</span>
+      <span>Contact: <a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></span>
+    </div>
+  </footer>
+</body>
+</html>

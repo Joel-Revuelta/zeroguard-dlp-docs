@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Support and Security Contacts — ZeroGuard DLP</title>
+  <meta name="description" content="ZeroGuard DLP support scope, response targets, and private vulnerability reporting.">
+  <meta name="robots" content="index,follow">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header__inner">
+      <a class="brand" href="index.html">
+        <span class="brand__mark" aria-hidden="true">ZG</span>
+        <span>ZeroGuard DLP</span>
+      </a>
+      <nav class="site-nav" aria-label="Documentation">
+          <a href="index.html">Home</a>
+          <a href="privacy.html">Privacy</a>
+          <a href="security.html">Security</a>
+          <a href="support.html" aria-current="page">Support</a>
+          <a href="terms.html">Terms</a>
+      </nav>
+    </div>
+  </header>
+  <main class="site-main">
+    <article class="doc">
+<h1>ZeroGuard DLP Support and Security Contact Policy</h1>
+<p><strong>App version covered:</strong> 1.0.x<br><strong>Last updated:</strong> 21 October 2026</p>
+<h2>1. Contact channels</h2>
+<table>
+<thead>
+<tr>
+<th>Purpose</th>
+<th>Contact</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Product support</td>
+<td><a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></td>
+</tr>
+<tr>
+<td>Support portal</td>
+<td><a href="https://joel-revuelta.github.io/zeroguard-dlp-docs/support.html">https://joel-revuelta.github.io/zeroguard-dlp-docs/support.html</a></td>
+</tr>
+<tr>
+<td>Security vulnerability reports</td>
+<td><a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></td>
+</tr>
+<tr>
+<td>Privacy requests</td>
+<td><a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></td>
+</tr>
+<tr>
+<td>Documentation</td>
+<td><a href="https://joel-revuelta.github.io/zeroguard-dlp-docs/">https://joel-revuelta.github.io/zeroguard-dlp-docs/</a></td>
+</tr>
+</tbody></table>
+<p>Use the security contact for suspected vulnerabilities, suspected data exposure, or security-control failures. Do not open a public issue, post details in a community forum, or include live secrets in any message.</p>
+<h2>2. Support scope</h2>
+<p>We provide support for:</p>
+<ul>
+<li>installation and licensing questions;</li>
+<li>configuration of policy scope, rules, dry-run mode, and retention;</li>
+<li>unexpected trigger, resolver, or audit behavior;</li>
+<li>audit integrity verification questions;</li>
+<li>CSV export and fallback behavior;</li>
+<li>suspected security issues in the app; and</li>
+<li>compatibility questions for supported Jira Cloud/JSM environments.</li>
+</ul>
+<p>We do not provide:</p>
+<ul>
+<li>Jira administration, Jira history rewriting, or Atlassian platform support;</li>
+<li>recovery of a credential that was exposed (rotate it immediately);</li>
+<li>legal, compliance, or data-protection advice;</li>
+<li>custom development, unless separately agreed in writing;</li>
+<li>support for modified app code or unsupported Forge runtimes; or</li>
+<li>guarantees that every secret or sensitive value will be detected.</li>
+</ul>
+<p>For Atlassian platform incidents, use Atlassian Support. For Jira permission, notification, webhook, backup, or history questions, contact the Customer&#39;s Jira administrators or Atlassian.</p>
+<h2>3. Response targets</h2>
+<p>These are targets, not a guaranteed service-level agreement unless a separate written agreement says otherwise:</p>
+<table>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Definition</th>
+<th>Target first response</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Security / critical</td>
+<td>Suspected vulnerability, data exposure, or complete loss of masking in a production site.</td>
+<td>Within one business day</td>
+</tr>
+<tr>
+<td>High</td>
+<td>Scanning, writeback, licensing, or audit integrity is unavailable for a production site; no workaround known.</td>
+<td>Within two business days</td>
+</tr>
+<tr>
+<td>Normal</td>
+<td>Configuration question, isolated failure, documentation issue, or reproducible bug with a workaround.</td>
+<td>Within three business days</td>
+</tr>
+<tr>
+<td>Low</td>
+<td>Feature request, cosmetic issue, or general question.</td>
+<td>Within five business days</td>
+</tr>
+</tbody></table>
+<p>Business days exclude weekends and public holidays at the vendor&#39;s location. Response time is not resolution time. We may ask for reproduction steps, timestamps, and metadata-only diagnostics.</p>
+<h2>4. What to include in a support request</h2>
+<p>Please include:</p>
+<ul>
+<li>Jira site URL and cloud ID, if known;</li>
+<li>Jira or JSM product and approximate user tier;</li>
+<li>app version (shown in the admin page footer or bootstrap response);</li>
+<li>the approximate event time in UTC, including time zone;</li>
+<li>issue key or issue ID, and comment ID if relevant;</li>
+<li>event type (issue created, issue updated, comment created, comment edited);</li>
+<li>the audit status (<code>PENDING</code>, <code>REDACTED</code>, <code>FAILED</code>, or <code>DETECTED</code>) and any <code>httpStatus</code>;</li>
+<li>whether dry-run or enforcement was active;</li>
+<li>policy scope mode and the relevant project ID;</li>
+<li>the exact error text shown in the UI, if any; and</li>
+<li>steps to reproduce with <strong>fake</strong> test data.</li>
+</ul>
+<p>Do <strong>not</strong> include:</p>
+<ul>
+<li>live API keys, passwords, private keys, or tokens;</li>
+<li>raw issue summaries, descriptions, or comment bodies;</li>
+<li>screenshots containing secrets;</li>
+<li>full event payloads;</li>
+<li>tenant salt values; or</li>
+<li>personal data that is not necessary for the request.</li>
+</ul>
+<p>If a screenshot is essential, redact the sensitive value and preserve only the surrounding layout and error text.</p>
+<h2>5. Security vulnerability reporting</h2>
+<p>Please report security issues privately to <strong><a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></strong>. If possible, include:</p>
+<ul>
+<li>a description of the issue and affected version;</li>
+<li>the security impact and attack prerequisites;</li>
+<li>reproduction steps using a test installation or fake data;</li>
+<li>whether the issue affects confidentiality, integrity, availability, licensing, or tenant isolation; and</li>
+<li>any suggested remediation.</li>
+</ul>
+<p>We will:</p>
+<ol>
+<li>acknowledge the report and establish a private channel;</li>
+<li>validate and triage the issue;</li>
+<li>develop and test a fix;</li>
+<li>coordinate disclosure with the reporter and, where relevant, Atlassian; and</li>
+<li>credit the reporter if they wish and if coordinated disclosure permits.</li>
+</ol>
+<p>Please give us a reasonable opportunity to fix the issue before public disclosure. Do not access, modify, or exfiltrate another customer&#39;s data, disrupt a production site, or use social engineering.</p>
+<h2>6. Diagnostic data and privacy</h2>
+<p>The app is designed to log metadata only. When requesting diagnostics, we will ask for the smallest set of metadata needed to reproduce the issue. Do not send secrets. If a log line appears to contain sensitive data, stop and report it as a security issue rather than forwarding it.</p>
+<p>Support communications may be retained for as long as needed to resolve the request, meet legal obligations, and improve the app. See the <a href="privacy.html">Privacy Policy</a> for the app&#39;s data handling.</p>
+<h2>7. Supported versions</h2>
+<p>We support the current Marketplace release and the immediately preceding minor release for security fixes, where practical. Jira Cloud is continuously updated; we may not be able to support an app version after Atlassian changes a required API or runtime.</p>
+<p>The v1.0 app targets Forge <code>nodejs24.x</code>. Unsupported runtimes, modified code, or self-hosted deployments are outside support.</p>
+<h2>8. Escalation</h2>
+<p>If a request is not progressing or involves a suspected security incident, reply to the existing support thread with <strong>&quot;ESCALATE — security&quot;</strong> or email <strong><a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></strong> with the original thread reference. Include the site URL, app version, and a concise impact statement. Do not include secrets.</p>
+<h2>9. Status and changes</h2>
+<p>We may update this policy as the app, support process, or Marketplace requirements change. The updated version will show a new effective date. Material changes will be noted in the Marketplace listing or documentation where appropriate.</p>
+
+
+    </article>
+  </main>
+  <footer class="site-footer">
+    <div class="site-footer__inner">
+      <span>ZeroGuard DLP is provided by Joel Revuelta Gómez, sole trader trading as ZeroGuard, Barcelona, Spain.</span>
+      <span>Contact: <a href="mailto:joel.revuel@gmail.com">joel.revuel@gmail.com</a></span>
+    </div>
+  </footer>
+</body>
+</html>
